@@ -29,20 +29,31 @@ import { useUploadThing } from '@/lib/uploadthing'
 
 import "react-datepicker/dist/react-datepicker.css";
 import { useRouter } from "next/navigation"
-import { createEvent } from "@/lib/actions/event.actions"
+import { createEvent, updateEvent } from "@/lib/actions/event.actions"
+import { IEvent } from "@/lib/database/models/event.model"
 
 type EventFormProps = {
     userId: string,
-    type: 'create' | 'update'
+    type: 'create' | 'update',
+    event?: IEvent,
+    eventId?: string
 }
 
-const EventForm = ({ userId, type }: EventFormProps) => {
-    // const initialValues = eventDefaultValues;
+const EventForm = ({ userId, type, event, eventId }: EventFormProps) => {
+    const initialValues = (event && type === 'update') ?
+        {
+            ...event,
+            startDateTime: new Date(event.startDateTime),
+            endDateTime: new Date(event.endDateTime)
+        } : eventDefaultValues;
+
+    console.log(event);
+
     const [files, setFiles] = useState<File[]>([])
     const { startUpload } = useUploadThing('imageUploader')
     const form = useForm<z.infer<typeof eventFormSchema>>({
         resolver: zodResolver(eventFormSchema),
-        defaultValues: eventDefaultValues
+        defaultValues: initialValues
     })
     const router = useRouter()
 
@@ -65,7 +76,7 @@ const EventForm = ({ userId, type }: EventFormProps) => {
                 const newEvent = await createEvent({
                     event: {
                         ...values, imageUrl: uploadedImageUrl,
-                        description: values.desciption
+                        description: values.description
                     },
                     userId,
                     path: '/profile'
@@ -73,6 +84,27 @@ const EventForm = ({ userId, type }: EventFormProps) => {
                 if (newEvent) {
                     form.reset()
                     router.push(`/events/${newEvent._id}`)
+                }
+
+            } catch (error) {
+                console.log(error);
+            }
+        }
+        if (type === 'update') {
+            if (!eventId) {
+                router.back()
+                return
+            }
+            try {
+                const updatedEvent = await updateEvent({
+                    userId,
+                    event: { ...values, imageUrl: uploadedImageUrl, _id: eventId },
+                    path: `/events/${eventId}`
+                })
+
+                if (updatedEvent) {
+                    form.reset()
+                    router.push(`/events/${updatedEvent._id}`)
                 }
 
             } catch (error) {
@@ -115,7 +147,7 @@ const EventForm = ({ userId, type }: EventFormProps) => {
                 <div className="flex flex-col gap-5 md:flex-row">
                     <FormField
                         control={form.control}
-                        name='desciption'
+                        name='description'
                         render={({ field }) => (
                             <FormItem className="w-full">
                                 <FormControl className="h-36">
